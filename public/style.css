@@ -1,0 +1,60 @@
+.echo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #11141a;
+    border-bottom: 2px solid #242b35;
+    padding: 10px 20px;
+    font-family: monospace;
+    color: #d1d4dc;
+}
+
+.workspace-dropdown {
+    background-color: #1a1f26;
+    color: #39ff14; /* Tactical green */
+    border: 1px solid #343d4a;
+    padding: 6px 12px;
+    font-family: monospace;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.workspace-dropdown:focus {
+    outline: none;
+    border-color: #39ff14;
+}
+
+.ptt-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #241111; /* Dark muted red when off */
+    color: #ff4d4d;
+    border: 1px solid #4a1e1e;
+    padding: 6px 14px;
+    font-family: monospace;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ptt-btn.recording {
+    background-color: #ff1414; /* Hot bright red when active */
+    color: #ffffff;
+    border-color: #ffffff;
+    box-shadow: 0 0 10px rgba(255, 20, 20, 0.5);
+}
+
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #ff1414;
+}
+
+.status-dot.connected {
+    background-color: #39ff14;
+    box-shadow: 0 0 8px #39ff14;
+}

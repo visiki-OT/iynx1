@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iynx1 F-150 Tactical Dashboard</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@700&display=swap" rel="stylesheet"/>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+                "error": "#ba1a1a",
+                "surface": "#f9f9f9",
+                "surface-container": "#eeeeee",
+                "outline": "#6e7979",
+                "outline-variant": "#bdc9c8",
+                "on-surface": "#1a1c1c"
+            },
+            fontFamily: {
+                "headline": ["Space Grotesk"],
+                "body": ["Inter"],
+                "mono": ["Roboto Mono"]
+            }
+          }
+        }
+      }
+    </script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { background-color: #f1f1f1; margin: 0; overflow: hidden; }
+        /* VISIKI OT HPHMI Selection Rules */
+        .hphmi-selected { box-shadow: inset 0 0 0 2px #FF00FF !important; } /* Magenta Ring for tables */
+        .hphmi-map-selected { outline: 2px solid #FF00FF !important; outline-offset: 2px; }
+        path.hphmi-map-selected { stroke: #FF00FF !important; stroke-width: 3px !important; stroke-opacity: 1 !important; }
+        /* Removed border from panel so we can use the 1px grid gap trick for perfect single lines */
+        .panel { background-color: #f1f1f1; border-radius: 0; }
+        .font-heading { font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.05em; font-weight: 700; color: #333333; text-transform: uppercase; }
+        .font-pv { font-family: 'Roboto Mono', monospace; font-size: 1.5rem; font-weight: bold; color: #111111; }
+        /* Prevent Leaflet from rendering above our headers */
+        #map-container { z-index: 1; }
+    </style>
+</head>
+<body class="font-body text-on-surface h-screen w-screen flex flex-col">
+    <div class="flex flex-col h-full w-full">
+        <main class="flex-grow grid grid-cols-1 md:grid-cols-2 md:grid-rows-2 w-full bg-[#777777] gap-[1px] overflow-hidden">
+            
+            <section id="q1-map" class="panel p-0 flex flex-col relative overflow-hidden h-full">
+                <div id="q1-map-controls" class="absolute top-4 left-4 z-[400] flex flex-col gap-2 pointer-events-none"></div>
+                <div id="map-container" class="flex-grow bg-[#E0E0E0] w-full h-full"></div>
+            </section>
+
+            <section id="q2-flex" class="panel p-0 flex flex-col relative overflow-hidden h-full">
+                <div class="flex border-b border-[#333333] bg-[#E0E0E0] shrink-0">
+                    <button id="tab-btn-controls" class="flex-1 py-2 px-4 border-r border-[#333333] font-heading text-[12px] bg-[#37474F] text-white transition-colors">CONTROLS</button>
+                    <button id="tab-btn-system" class="flex-1 py-2 px-4 border-r border-[#333333] font-heading text-[12px] text-[#333333] hover:bg-[#D0D0D0] transition-colors">SYSTEM</button>
+                    <button id="tab-btn-reports" class="flex-1 py-2 px-4 border-r border-[#333333] font-heading text-[12px] text-[#333333] hover:bg-[#D0D0D0] transition-colors">REPORTS</button>
+                    <button id="tab-btn-detail" class="flex-1 py-2 px-4 font-heading text-[12px] text-[#333333] hover:bg-[#D0D0D0] transition-colors">DETAIL</button>
+                </div>
+                <div class="flex-grow relative overflow-hidden bg-[#F1F1F1]">
+                    
+                    <div id="tab-content-controls" class="w-full h-full flex flex-col p-6 gap-6 overflow-y-auto">
+                        <div class="font-heading text-[14px] border-b border-[#333333] pb-2 text-[#333333] shrink-0">OPERATOR CONTROLS</div>
+                        
+                        <div class="flex flex-col gap-3 p-4 bg-[#E8E8E8] border border-outline-variant rounded-sm">
+                            <div class="text-[12px] font-bold uppercase tracking-widest text-[#333333] border-b border-outline-variant pb-1">OPERATING MODE (EMCON)</div>
+                            <div class="grid grid-cols-3 gap-2 mt-2">
+                                <button class="py-2 bg-[#10b981] text-white font-heading text-[12px] font-bold uppercase tracking-widest shadow-sm">NORMAL</button>
+                                <button class="py-2 bg-[#E0E0E0] border border-outline text-[#555555] font-heading text-[12px] font-bold uppercase tracking-widest hover:bg-[#D0D0D0] transition-colors">STEALTH</button>
+                                <button class="py-2 bg-[#E0E0E0] border border-outline text-[#ba1a1a] font-heading text-[12px] font-bold uppercase tracking-widest hover:bg-[#ba1a1a] hover:text-white transition-colors">SILENT</button>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col gap-3 p-4 bg-[#E8E8E8] border border-outline-variant rounded-sm">
+                            <div class="text-[12px] font-bold uppercase tracking-widest text-[#333333] border-b border-outline-variant pb-1">IYNX Edge Engine Controls</div>
+                            <div class="flex flex-col gap-1.5 mt-2">
+                                <label for="workspace-selector" class="text-[12px] font-bold uppercase tracking-widest text-[#777777]">Workspace Mode</label>
+                                <select id="workspace-selector" class="w-full bg-[#F9F9F9] border-b border-[#777777] text-[12px] font-mono font-bold text-[#111111] p-1.5 appearance-none rounded-none focus:outline-none cursor-pointer uppercase">
+                                    <option value="pipeline-sim">WORKSPACE: PIPELINE SIMULATION</option>
+                                    <option value="incident-command">WORKSPACE: INCIDENT COMMAND (IYNX)</option>
+                                    <option value="generic-mqtt">WORKSPACE: GENERIC MQTT GATEWAY</option>
+                                </select>
+                            </div>
+
+                            <div class="flex justify-between items-center mt-4">
+                                <div class="flex items-center gap-2">
+                                    <div id="connection-indicator" class="w-3 h-3 rounded-full bg-[#ba1a1a] shadow-[0_0_8px_rgba(186,26,26,0.5)] transition-all duration-300" title="MQTT Broker Disconnected"></div>
+                                    <span class="text-[12px] text-[#777777] font-bold uppercase tracking-widest">MQTT Broker</span>
+                                </div>
+                                <button id="ptt-mic-btn" class="flex items-center gap-2 bg-[#E0E0E0] text-[#ba1a1a] border border-[#ba1a1a] hover:bg-[#ba1a1a] hover:text-white px-4 py-1.5 rounded-sm text-[12px] font-bold transition-colors cursor-pointer select-none uppercase tracking-widest shadow-sm">
+                                    <span class="mic-icon">🎙️</span> 
+                                    <span class="mic-text">PTT: MIC MUTED</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="tab-content-system" class="w-full h-full flex flex-col hidden p-6 overflow-y-auto">
+                        <div class="flex items-center justify-between mb-4 shrink-0 border-b border-[#333333] pb-2">
+                            <div class="font-heading text-[14px] text-[#333333]">SYSTEM DIAGNOSTICS</div>
+                        </div>
+                        
+                        <div id="q2-submenu-mount" class="flex flex-wrap gap-2 mb-4 shrink-0"></div>
+                        
+                        <div id="q2-detail-mount" class="flex-grow"></div>
+                    </div>
+
+                    <div id="tab-content-reports" class="w-full h-full flex flex-col hidden p-6 overflow-y-auto">
+                        <div class="font-heading text-[14px] border-b border-[#333333] pb-2 text-[#333333] shrink-0 mb-4">AI INTELLIGENCE & REPORTS</div>
+                        <div id="q2-reports-mount" class="flex flex-col gap-2">
+                        </div>
+                    </div>
+
+                    <div id="tab-content-detail" class="w-full h-full flex flex-col hidden p-0 overflow-hidden relative">
+                        <div id="q2-map-container" class="w-full h-1/2 bg-[#D0D0D0] border-b border-[#333333]"></div>
+                        <div class="w-full h-1/2 bg-[#F1F1F1] p-6 overflow-y-auto">
+                            <div class="font-heading text-[14px] border-b border-[#333333] pb-2 text-[#333333] shrink-0 mb-4">TACTICAL METADATA</div>
+                            <div id="q2-target-data" class="font-mono text-[12px] font-bold text-[#555555]">
+                                Awaiting target selection...
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <section id="q3-telemetry" class="panel p-0 flex flex-col relative overflow-hidden h-full bg-[#F1F1F1]">
+                <div class="flex-grow overflow-auto">
+                    <table class="w-full border-collapse table-fixed">
+                        <thead>
+                            <tr class="bg-[#eeeeee] text-left border-b border-outline h-[41px]">
+                                <th class="pl-6 pr-2 text-[12px] font-bold uppercase tracking-widest text-[#333333] font-heading w-[60%]">SYSTEM</th>
+                                <th class="px-2 text-[12px] font-bold uppercase tracking-widest text-[#333333] font-heading text-right pr-6">STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody class="cursor-pointer">
+                            <tr class="border-b border-outline-variant hover:bg-[#E8E8E8] transition-colors h-[48px]" data-sys="leo">
+                                <td class="pl-6 pr-2 text-[12px] font-bold text-[#555555] uppercase tracking-widest">UPLINK (LEO)</td>
+                                <td class="px-2 text-right pr-6"><span class="font-mono text-[18px] font-bold text-[#00A3DA]">FPO</span></td>
+                            </tr>
+                            <tr class="border-b border-outline-variant hover:bg-[#E8E8E8] transition-colors h-[48px]" data-sys="cell">
+                                <td class="pl-6 pr-2 text-[12px] font-bold text-[#555555] uppercase tracking-widest">UPLINK (CELL)</td>
+                                <td class="px-2 text-right pr-6"><span class="font-mono text-[18px] font-bold text-[#FF00FF]">--</span></td>
+                            </tr>
+                            <tr class="border-b border-outline-variant hover:bg-[#E8E8E8] transition-colors h-[48px]" data-sys="rf">
+                                <td class="pl-6 pr-2 text-[12px] font-bold text-[#555555] uppercase tracking-widest">RF INTERCEPT</td>
+                                <td class="px-2 text-right pr-6"><span class="font-mono text-[18px] font-bold text-[#333333]">ACTIVE</span></td>
+                            </tr>
+                            <tr class="border-b border-outline-variant hover:bg-[#E8E8E8] transition-colors h-[48px]" data-sys="mesh">
+                                <td class="pl-6 pr-2 text-[12px] font-bold text-[#555555] uppercase tracking-widest">MESH NETWORK</td>
+                                <td class="px-2 text-right pr-6"><span class="font-mono text-[18px] font-bold text-[#00A3DA]">FPO</span></td>
+                            </tr>
+                            <tr class="border-b border-outline-variant hover:bg-[#E8E8E8] transition-colors h-[48px]" data-sys="audio">
+                                <td class="pl-6 pr-2 text-[12px] font-bold text-[#555555] uppercase tracking-widest">COMMS AUDIO</td>
+                                <td class="px-2 text-right pr-6"><span class="font-mono text-[18px] font-bold text-[#00A3DA]">FPO</span></td>
+                            </tr>
+                            <tr class="border-b border-outline-variant hover:bg-[#E8E8E8] transition-colors h-[48px]" data-sys="perimeter">
+                                <td class="pl-6 pr-2 text-[12px] font-bold text-[#555555] uppercase tracking-widest">PERIMETER</td>
+                                <td class="px-2 text-right pr-6"><span class="font-mono text-[18px] font-bold text-[#00A3DA]">FPO</span></td>
+                            </tr>
+                            <tr class="border-b border-outline-variant hover:bg-[#E8E8E8] transition-colors h-[48px]" data-sys="power">
+                                <td class="pl-6 pr-2 text-[12px] font-bold text-[#555555] uppercase tracking-widest">LOCAL POWER</td>
+                                <td class="px-2 text-right pr-6"><span class="font-mono text-[18px] font-bold text-[#00A3DA]">FPO</span></td>
+                            </tr>
+                            <tr class="border-b border-outline-variant hover:bg-[#E8E8E8] transition-colors h-[48px]" data-sys="firms">
+                                <td class="pl-6 pr-2 text-[12px] font-bold text-[#555555] uppercase tracking-widest">EXT FEED (FIRMS)</td>
+                                <td class="px-2 text-right pr-6"><span class="font-mono text-[18px] font-bold text-[#FF00FF]">--</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="q4-alarms" class="panel p-0 flex flex-col relative overflow-hidden h-full bg-[#F1F1F1]">
+                <div class="px-6 h-[41px] border-b border-outline flex justify-between items-center bg-[#eeeeee] text-[#1a1c1c] shrink-0" style="box-sizing: border-box;">
+                    <div class="flex items-center gap-3">
+                        <span class="font-heading text-[14px] font-bold uppercase tracking-widest text-[#333333]">ALARM SUMMARY - SYSTEM STATUS</span>
+                    </div>
+                    <div class="flex items-center pr-2 select-none">
+                        <div class="flex items-center px-3 py-0.5 border-2 border-dotted border-[#A0A0A0] rounded-sm bg-[#E8E8E8]">
+                            <span class="font-heading text-[12px] font-bold tracking-widest text-[#555555] mr-2">VISIKI OT&trade;</span>
+                            <span class="font-mono text-[12px] font-bold text-[#777777]">/ iynx-1</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col flex-grow overflow-hidden">
+                    <div id="q4-alarm-list" class="flex flex-col border-b border-outline-variant flex-1 overflow-y-auto min-h-[40px] bg-[#F1F1F1]">
+                        </div>
+                    
+                    <div class="p-0 overflow-y-auto shrink-0 max-h-[30%] bg-[#F1F1F1]">
+                        <div id="logStream" class="font-mono text-[12px] font-bold text-[#333333] space-y-0 px-6 py-2">
+                            </div>
+                    </div>
+                </div>
+
+                <div class="px-4 bg-[#eeeeee] border-t border-outline flex items-center justify-center relative h-[64px] shrink-0 mt-auto gap-4">
+                    <button id="btn-mute-alarms" class="w-[40px] h-[40px] bg-[#E0E0E0] border border-[#777777] text-[#333333] hover:bg-[#D0D0D0] transition-colors rounded-sm shadow-sm flex justify-center items-center">
+                        </button>
+                    <button id="btn-ack-all" class="px-8 h-[40px] bg-[#E0E0E0] border border-[#777777] text-[#333333] font-heading text-[12px] font-bold uppercase tracking-widest hover:bg-[#D0D0D0] transition-colors rounded-sm shadow-sm flex justify-center items-center gap-2">
+                        ACKNOWLEDGE ALL
+                    </button>
+                </div>
+            </section>
+
+        </main>
+    </div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+        <script src="galatea-core.js"></script>
+        <script src="syrinx-core.js"></script>
+        <script src="echo-core.js"></script>
+</body>
+</html>
